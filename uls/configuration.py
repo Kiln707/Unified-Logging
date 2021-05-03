@@ -23,5 +23,5 @@ CONFIG_DEFAULTS = {
 
 def get_configuration(configuration_location=None, load_env=False):
     if not configuration_location:
-        configuration_location =  path.join(path.abspath(path.dirname(__file__)), 'configuration.json')
+        configuration_location = path.join(path.abspath(path.dirname(__file__)), 'configuration.json')
     return load_or_create(configuration_location, defaults=CONFIG_DEFAULTS, load_env=load_env)
