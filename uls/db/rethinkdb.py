@@ -1,7 +1,8 @@
 from rethinkdb import RethinkDB as r
+from uls.api import LoggingHandler
 
 
-class RethinkdbConnection:
+class RethinkdbConnection(LoggingHandler):
     def __init__(self, host, port, db, username, password, timeout='', ssl=None):
         self._session = None
         self._host = host
@@ -24,10 +25,14 @@ class RethinkdbConnection:
     def close(self):
         self._session.close()
 
-    def prepare_database(self):
+    def initialize(self):
         tables = r.table_list().run(self._session)
         if 'logs' not in tables:
             r.table_create('logs').run(self._session)
 
     def insert_log(self, data):
-        r.table('logs').insert(data).run(self._session)
+        try:
+            r.table('logs').insert(data).run(self._session)
+            return True
+        except:
+            return False
