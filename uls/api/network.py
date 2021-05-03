@@ -1,8 +1,9 @@
 from datetime import datetime
 from twisted.internet.protocol import Factory, Protocol
 from twisted.internet.error import ConnectionDone
+from json import JSONDecodeError
 
-from uhs.extendable_json import extendable_json as json
+from extendable_json import extendable_json as json
 
 
 class UHSLoggingProtocol(Protocol):
@@ -14,14 +15,14 @@ class UHSLoggingProtocol(Protocol):
         self.transport.write(data)
 
     def dataReceived(self, data):
-        self._factory.data_received(data)
+        self._factory.dataReceived(self, data)
 
-    def connectionLost(self, reason=connectionDone):
+    def connectionLost(self, reason=ConnectionDone):
         self._factory.connectionLost(self, reason)
 
     def connectionMade(self):
         self._peer = self.transport.getPeer()
-        self._factory.data_received('Connection Made, remote: %s' % self._peer)
+        self._factory.connectionMade(protocol=self)
 
     def getPeer(self):
         return self._peer
@@ -34,14 +35,21 @@ class UHSLoggingProtocol(Protocol):
 
 
 class UHSLoggingFactoryMixin:
-    def __init__(self, logger):
-        self._logger = logger
+    def __init__(self, callback):
+        self._callback = callback
 
     def dataReceived(self, protocol, data):
-        j_data = json.loads(data)
+        try:
+            j_data = json.loads(data)
+        except JSONDecodeError:
+            j_data = {'time': datetime.utcnow(),
+                      'event': 'Generic Log Event',
+                      'peer': protocol.getPeer(),
+                      'msg': data.decode('UTF-8')
+                      }
         if 'peer_ip' not in j_data:
             j_data['peer_ip'] = protocol.getPeer()
-        self._logger.handle(j_data)
+        self._callback(j_data)
 
     def connectionMade(self, protocol):
         j_data = {
@@ -49,7 +57,7 @@ class UHSLoggingFactoryMixin:
             'event': 'Connection Made',
             'peer': protocol.getPeer(),
         }
-        self._logger.handle(j_data)
+        self._callback(j_data)
 
     def connectionLost(self, protocol, reason):
         j_data = {
@@ -58,7 +66,7 @@ class UHSLoggingFactoryMixin:
             'peer': protocol.getPeer(),
             'reason': reason
         }
-        self._logger.handle(j_data)
+        self._callback(j_data)
 
 
 class UHSLoggingProtocolClientFactory(Factory, UHSLoggingFactoryMixin):
@@ -66,6 +74,6 @@ class UHSLoggingProtocolClientFactory(Factory, UHSLoggingFactoryMixin):
         return UHSLoggingProtocol(factory=self)
 
 
-class UHSLoggingProtocolServerFactory(Factory, UHSLoggingFactoryMixin):
+class UHSLoggingProtocolServerFactory(UHSLoggingFactoryMixin, Factory):
     def buildProtocol(self, addr):
         return UHSLoggingProtocol(factory=self)

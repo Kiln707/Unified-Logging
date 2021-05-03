@@ -1,4 +1,4 @@
-from .network import UHSLoggingProtocolServerFactory
+from uls.api.network import UHSLoggingProtocolServerFactory
 from uhs.simpleconfig import simpleconfig
 
 class LoggingServer:
