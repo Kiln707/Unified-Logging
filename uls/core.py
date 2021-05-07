@@ -15,6 +15,9 @@ class UnifiedLoggingServer:
         self.reactor = reactor
         self.reactor.listenTCP(self.config.valueOf('port', default=8123, type_=int),
                                UHSLoggingProtocolServerFactory(self.log))
+        self.configure_handlers()
+
+    def configure_handlers(self):
         for log_type, data in self.config.valueOf('logging').items():
             if log_type == "file":
                 from uls.log_handlers.file_handler import FileHandler
@@ -25,23 +28,26 @@ class UnifiedLoggingServer:
             handle.initialize()
 
     def add_handler(self, handle):
-        self.log_handlers.append(handle)
+        self.log_handlers.append(BufferedLogHandler(handle))
 
-    def write_buffer(self):
+    def _write_buffer(self):
         if self._buffer:
-            for msg in self._buffer
+            for msg in self._buffer:
+                self._write_log(msg)
 
     def _write_log(self, msg):
+        log_success = 0
+        for handler in self.log_handlers:
+            if handler.insert_log(msg):
+                log_success += 1
+        return log_success
 
     def log(self, msg):
         if not self.log_handlers:
             self._buffer.insert_log(msg)
-        log_success = False
-        for handler in self.log_handlers:
-            written = handler(msg)
-            if written:
-                log_success = written
-        if not log_success:
+            return False
+        self._write_buffer()
+        if not self._write_log(msg):
             self._buffer.insert_log(msg)
 
     def run(self):

@@ -34,7 +34,23 @@ class UHSLoggingProtocol(Protocol):
         self.transport.loseConnection()
 
 
-class UHSLoggingFactoryMixin:
+class UHSLoggingProtocolClientFactory(Factory):
+    def __init__(self):
+        self.protocol = None
+
+    def sendLog(self, data):
+        """sendLog
+        Send structured log data to Unified Logging Server
+        """
+        j_data = json.dumps(data)
+        self.protocol.sendData(j_data)
+
+    def buildProtocol(self, addr):
+        self.protocol = UHSLoggingProtocol(factory=self)
+        return self.protocol
+
+
+class UHSLoggingProtocolServerFactory(UHSLoggingFactoryMixin, Factory):
     def __init__(self, callback):
         self._callback = callback
 
@@ -68,12 +84,5 @@ class UHSLoggingFactoryMixin:
         }
         self._callback(j_data)
 
-
-class UHSLoggingProtocolClientFactory(Factory, UHSLoggingFactoryMixin):
-    def buildProtocol(self, addr):
-        return UHSLoggingProtocol(factory=self)
-
-
-class UHSLoggingProtocolServerFactory(UHSLoggingFactoryMixin, Factory):
     def buildProtocol(self, addr):
         return UHSLoggingProtocol(factory=self)
