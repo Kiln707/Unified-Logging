@@ -3,7 +3,7 @@ from uls.api import LoggingHandler
 
 
 class RethinkdbConnection(LoggingHandler):
-    def __init__(self, host, port, db, username, password, timeout='', ssl=None):
+    def __init__(self, host='localhost', port=28015, db='test', username='admin', password='', timeout='', ssl=None):
         self._session = None
         self._host = host
         self._port = port
