@@ -1,0 +1,19 @@
+{
+  "listen": "127.0.0.1",
+  "port": 8123,
+  "logging": {
+    "file": {
+      "file_location": "E:\\Development\\SwanOhana\\Unified-Logging\\uls\\uls.log"
+    },
+    "db": {
+      "driver": "rethinkdb",
+      "host": "",
+      "port":  28015,
+      "db":  "test",
+      "username":  "admin",
+      "password":  "",
+      "timeout":  "",
+      "ssl": null
+    }
+  }
+}

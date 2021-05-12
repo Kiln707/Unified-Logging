@@ -1,21 +1,21 @@
 from datetime import datetime
-from twisted.internet.protocol import Factory, Protocol
+from twisted.internet.protocol import ClientFactory, Factory, Protocol
 from twisted.internet.error import ConnectionDone
 from json import JSONDecodeError
 
 from extendable_json import extendable_json as json
 
 
-class UHSLoggingProtocol(Protocol):
+class ULSLoggingProtocol(Protocol):
     def __init__(self, factory):
         self._factory = factory
         self._peer = None
 
     def sendData(self, data):
-        self.transport.write(data)
+        self.transport.write(data.encode('UTF-8'))
 
     def dataReceived(self, data):
-        self._factory.dataReceived(self, data)
+        self._factory.dataReceived(self, data.decode('UTF-8'))
 
     def connectionLost(self, reason=ConnectionDone):
         self._factory.connectionLost(self, reason)
@@ -34,55 +34,51 @@ class UHSLoggingProtocol(Protocol):
         self.transport.loseConnection()
 
 
-class UHSLoggingProtocolClientFactory(Factory):
+class ULSLoggingProtocolClientFactory(ClientFactory):
     def __init__(self):
+        super().__init__()
         self.protocol = None
 
     def sendLog(self, data):
         """sendLog
         Send structured log data to Unified Logging Server
         """
+        if not self.protocol:
+            return
         j_data = json.dumps(data)
         self.protocol.sendData(j_data)
 
+    def connectionMade(self, protocol):
+        self.protocol = protocol
+
     def buildProtocol(self, addr):
-        self.protocol = UHSLoggingProtocol(factory=self)
+        self.protocol = ULSLoggingProtocol(factory=self)
         return self.protocol
 
 
-class UHSLoggingProtocolServerFactory(UHSLoggingFactoryMixin, Factory):
+class ULSLoggingProtocolServerFactory(Factory):
     def __init__(self, callback):
         self._callback = callback
 
     def dataReceived(self, protocol, data):
         try:
-            j_data = json.loads(data)
+            j_data = json.loads(data.decode('UTF-8'))
         except JSONDecodeError:
-            j_data = {'time': datetime.utcnow(),
-                      'event': 'Generic Log Event',
-                      'peer': protocol.getPeer(),
-                      'msg': data.decode('UTF-8')
-                      }
-        if 'peer_ip' not in j_data:
-            j_data['peer_ip'] = protocol.getPeer()
-        self._callback(j_data)
+            j_data = {'error': 'Received malformed message'}
+        self._callback(j_data, protocol)
 
     def connectionMade(self, protocol):
         j_data = {
-            'time': datetime.utcnow(),
-            'event': 'Connection Made',
-            'peer': protocol.getPeer(),
+            'connection_made': protocol.getPeer(),
         }
-        self._callback(j_data)
+        self._callback(j_data, protocol)
 
     def connectionLost(self, protocol, reason):
         j_data = {
-            'time': datetime.utcnow(),
-            'event': 'Connection lost',
-            'peer': protocol.getPeer(),
+            'Connection lost': protocol.getPeer(),
             'reason': reason
         }
-        self._callback(j_data)
+        self._callback(j_data, protocol)
 
     def buildProtocol(self, addr):
-        return UHSLoggingProtocol(factory=self)
+        return ULSLoggingProtocol(factory=self)
