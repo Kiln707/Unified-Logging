@@ -1,4 +1,4 @@
-from uls.api import ULSLoggingProtocolClientFactory
+from ulc.api import ULCLoggingProtocolClientFactory
 from twisted.internet.task import LoopingCall
 
 
@@ -10,7 +10,7 @@ class ULSTestClient:
     def initialize(self):
         from twisted.internet import reactor
         self.reactor = reactor
-        self.network_connection = ULSLoggingProtocolClientFactory()
+        self.network_connection = ULCLoggingProtocolClientFactory(application_name='Test Client')
         self.reactor.connectTCP('localhost', 8123, self.network_connection)
         lc = LoopingCall(self.timed_test)
         lc.start(1)

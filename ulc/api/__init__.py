@@ -1,1 +1,1 @@
-from .network import ULSLoggingProtocol, ULSLoggingProtocolClientFactory
+from .network import ULCLoggingProtocol, ULCLoggingProtocolClientFactory

@@ -1,12 +1,12 @@
-from datetime import datetime
-from twisted.internet.protocol import ClientFactory, Factory, Protocol
-from twisted.internet.error import ConnectionDone
-from json import JSONDecodeError
-
+from blinker import signal
 from extendable_json import extendable_json as json
+from json import JSONDecodeError
+from twisted.internet.error import ConnectionDone
+from twisted.internet.protocol import ClientFactory, Factory, Protocol
+import os
 
 
-class ULSLoggingProtocol(Protocol):
+class ULCLoggingProtocol(Protocol):
     def __init__(self, factory):
         self._factory = factory
         self._peer = None
@@ -34,10 +34,11 @@ class ULSLoggingProtocol(Protocol):
         self.transport.loseConnection()
 
 
-class ULSLoggingProtocolClientFactory(ClientFactory):
-    def __init__(self):
+class ULCLoggingProtocolClientFactory(ClientFactory):
+    def __init__(self, application_name):
         super().__init__()
         self.protocol = None
+        self.application_name = application_name
 
     def sendLog(self, data):
         """sendLog
@@ -50,35 +51,41 @@ class ULSLoggingProtocolClientFactory(ClientFactory):
 
     def connectionMade(self, protocol):
         self.protocol = protocol
+        self.updateServer()
+
+    def connectionLost(self):
+        pass
+
+    def updateServer(self):
+        computername = os.environ['COMPUTERNAME']
+        self.sendLog({"ULC": "CLIENT_UPDATE",
+                               "computername": computername,
+                               "application": self.application_name
+                               })
 
     def buildProtocol(self, addr):
-        self.protocol = ULSLoggingProtocol(factory=self)
+        self.protocol = ULCLoggingProtocol(factory=self)
         return self.protocol
 
 
-class ULSLoggingProtocolServerFactory(Factory):
-    def __init__(self, callback):
-        self._callback = callback
+class ULCLoggingProtocolServerFactory(Factory):
+    def __init__(self):
+        self.onConnectionMade = signal('ULC_onConnectionMade')
+        self.onConnectionLost = signal('ULC_onConnectionLost')
+        self.onDataReceived = signal('ULC_onDataReceived')
 
     def dataReceived(self, protocol, data):
         try:
-            j_data = json.loads(data.decode('UTF-8'))
+            j_data = json.loads(data)
         except JSONDecodeError:
             j_data = {'error': 'Received malformed message'}
-        self._callback(j_data, protocol)
+        self.onDataReceived.send(protocol, **j_data)
 
     def connectionMade(self, protocol):
-        j_data = {
-            'connection_made': protocol.getPeer(),
-        }
-        self._callback(j_data, protocol)
+        self.onConnectionMade.send(protocol)
 
     def connectionLost(self, protocol, reason):
-        j_data = {
-            'Connection lost': protocol.getPeer(),
-            'reason': reason
-        }
-        self._callback(j_data, protocol)
+        self.onConnectionLost.send(protocol, reason=reason)
 
     def buildProtocol(self, addr):
-        return ULSLoggingProtocol(factory=self)
+        return ULCLoggingProtocol(factory=self)
